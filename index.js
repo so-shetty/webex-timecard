@@ -121,14 +121,14 @@ function weekdayIndex(date, tzOffsetMinutes = 0) {
 
 // -------------------- Messaging helpers --------------------
 async function sendMessage(optsOrRoom, textOrAttachments, maybeAttachments) {
-  // Accept either ({roomId|toPersonEmail|toPersonId, text, attachments}) or (roomId, text, attachments)
+  // Accept either ({roomId|toPersonEmail|toPersonId, text, attachments, markdown}) or (roomId, text, attachments)
   let opts = {};
   if (typeof optsOrRoom === "object" && optsOrRoom !== null && !Array.isArray(optsOrRoom)) {
     opts = optsOrRoom;
   } else {
     opts = { roomId: optsOrRoom, text: textOrAttachments, attachments: maybeAttachments };
   }
-  const { roomId, toPersonEmail, toPersonId, text, attachments } = opts;
+  const { roomId, toPersonEmail, toPersonId, text, attachments, markdown } = opts;
   const destCount = [roomId, toPersonEmail, toPersonId].filter(Boolean).length;
   if (destCount !== 1) {
     console.error("sendMessage wrong destination:", { roomId, toPersonEmail, toPersonId });
@@ -139,6 +139,7 @@ async function sendMessage(optsOrRoom, textOrAttachments, maybeAttachments) {
   else if (toPersonEmail) body.toPersonEmail = toPersonEmail;
   else if (toPersonId) body.toPersonId = toPersonId;
   if (text) body.text = text;
+  if (markdown) body.markdown = markdown;
   if (attachments) body.attachments = attachments;
 
   try {
@@ -149,7 +150,7 @@ async function sendMessage(optsOrRoom, textOrAttachments, maybeAttachments) {
     });
     const txt = await res.text();
     let json = null;
-    try { json = JSON.parse(txt); } catch(e){}
+    try { json = JSON.parse(txt); } catch (e) { }
     console.log("POST /messages status:", res.status, txt);
     return { ok: res.ok, status: res.status, bodyText: txt, json };
   } catch (err) {
@@ -166,7 +167,7 @@ async function fetchMessageById(messageId) {
     });
     const txt = await res.text();
     let json = null;
-    try { json = JSON.parse(txt); } catch(e){}
+    try { json = JSON.parse(txt); } catch (e) { }
     return { ok: res.ok, status: res.status, json, raw: txt };
   } catch (err) {
     console.error("fetchMessageById error:", err);
@@ -264,16 +265,16 @@ function buildMainCard(personId, defaultValue = "") {
     "version": "1.3",
     "body": [
       // -----------------------------
-    // ✅ TOAST GOES HERE
-    // -----------------------------
-        ...(users[personId]?.toastMainCard ? [{
-            "type": "TextBlock",
-            "text": toast,
-            "color": "Attention",
-            "weight": "Bolder",
-            "wrap": true,
-            "spacing": "Small"
-        }] : []),
+      // ✅ TOAST GOES HERE
+      // -----------------------------
+      ...(users[personId]?.toastMainCard ? [{
+        "type": "TextBlock",
+        "text": toast,
+        "color": "Attention",
+        "weight": "Bolder",
+        "wrap": true,
+        "spacing": "Small"
+      }] : []),
 
       { "type": "TextBlock", "text": "🕒 Timecard", "weight": "Bolder", "size": "Medium" },
       { "type": "TextBlock", "text": "Pick a project or type a new one:", "wrap": true, "spacing": "Small" },
@@ -316,7 +317,7 @@ function buildMainCard(personId, defaultValue = "") {
       { "type": "Action.Submit", "title": "Start Timer", "data": { action: "start_timer" } },
       { "type": "Action.Submit", "title": "Show Timers", "data": { action: "show_timers" } },
       { "type": "Action.Submit", "title": "Manage Projects", "data": { action: "manage_projects" } },
-      {"type": "Action.Submit","title": "📊 Weekly Report","data": { action: "show_weekly_report" }}
+      { "type": "Action.Submit", "title": "📊 Weekly Report", "data": { action: "show_weekly_report" } }
     ]
   };
   return card;
@@ -384,8 +385,8 @@ function buildTimersCard(personId) {
   const u = users[personId] || {};
   const timers = u.activeTimers || {};
   const toast = users[personId].toastTimersCard;
-  users[personId].consolidatedMap = {}; 
-  
+  users[personId].consolidatedMap = {};
+
   const now = Date.now();
   const body = [
     { "type": "TextBlock", "text": "⏱️ Active Timers", "weight": "Bolder", "size": "Medium" }
@@ -394,7 +395,7 @@ function buildTimersCard(personId) {
   // STEP 1: consolidate active timers (project + notes)
   const consolidated = consolidateActiveTimers(timers);
 
-    if (!consolidated.length) {
+  if (!consolidated.length) {
     body.push({ "type": "TextBlock", "text": "No active timers.", "wrap": true });
   } else {
     body.push({
@@ -501,7 +502,7 @@ function persistActiveTimers(personId) {
   const u = users[personId] || {};
   const timers = u.activeTimers || {};
   saveUserTimers(personId, timers);
-  
+
 }
 
 
@@ -595,7 +596,7 @@ function generateWeeklyPivotReport(personId) {
   const localToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
 
   // JS weekday: 0=Sun,1=Mon...
-  const jsDay = today.getDay(); 
+  const jsDay = today.getDay();
   const daysSinceMonday = (jsDay + 6) % 7;
 
   // Local Monday 00:00
@@ -611,8 +612,8 @@ function generateWeeklyPivotReport(personId) {
   // ------------------------------------------------------------
   // STEP 2 — Determine active weekdays (Mon → Today)
   // ------------------------------------------------------------
-  const allDays = ["mon","tue","wed","thu","fri","sat","sun"];
-  const activeDaysCount = (jsDay === 0 ? 7 : jsDay); 
+  const allDays = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+  const activeDaysCount = (jsDay === 0 ? 7 : jsDay);
   const activeDays = allDays.slice(0, activeDaysCount);
 
   // Map JS day index → report column
@@ -662,7 +663,7 @@ function generateWeeklyPivotReport(personId) {
   // STEP 4 — Build table rows (for display)
   // ------------------------------------------------------------
   const tableRows = [];
-  const columnTotals = { mon:0, tue:0, wed:0, thu:0, fri:0, sat:0, sun:0 };
+  const columnTotals = { mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 };
 
   for (const [project, data] of Object.entries(projects)) {
     const row = { project };
@@ -918,25 +919,25 @@ async function stopTimer(personId, timerId, opts = {}) {
 
     // refresh timers card if open (only if the stored message id is actually a card)
     // refresh timers card if open (only if the stored message id is actually a card)
-      if (u.timersCardMessageId) {
-        const fetchRes = await fetchMessageById(u.timersCardMessageId);
-        if (fetchRes && fetchRes.ok && fetchRes.json &&
-            fetchRes.json.attachments &&
-            fetchRes.json.attachments.length &&
-            fetchRes.json.personEmail === BOT_EMAIL) {
+    if (u.timersCardMessageId) {
+      const fetchRes = await fetchMessageById(u.timersCardMessageId);
+      if (fetchRes && fetchRes.ok && fetchRes.json &&
+        fetchRes.json.attachments &&
+        fetchRes.json.attachments.length &&
+        fetchRes.json.personEmail === BOT_EMAIL) {
 
-          const newCard = buildTimersCard(personId);
-          await updateMessageById(
-            u.timersCardMessageId,
-            u.roomId,
-            "⏱️ Active timers (refreshed)",
-            newCard
-          );
+        const newCard = buildTimersCard(personId);
+        await updateMessageById(
+          u.timersCardMessageId,
+          u.roomId,
+          "⏱️ Active timers (refreshed)",
+          newCard
+        );
 
-        } else {
-          console.log("Skipping timersCard update - stored message is not a card or not found.");
-        }
+      } else {
+        console.log("Skipping timersCard update - stored message is not a card or not found.");
       }
+    }
 
 
 
@@ -976,6 +977,13 @@ app.post("/webhook", async (req, res) => {
         const resp = await fetch(`${WEBEX_API}/messages/${msgId}`, { headers: { Authorization: `Bearer ${BOT_TOKEN}` } });
         const msg = await resp.json();
         console.log("full message:", JSON.stringify(msg, null, 2));
+
+        // Ignore messages from the bot itself
+        if (msg.personEmail === BOT_EMAIL) {
+          console.log("Ignoring message from bot itself");
+          return;
+        }
+
         const personId = msg.personId;
         const roomId = msg.roomId;
         ensureUser(personId);
@@ -984,7 +992,7 @@ app.post("/webhook", async (req, res) => {
 
         const text = (msg.text || "").trim().toLowerCase();
 
-        if (text.includes("start")) {
+        if (text === "start") {
           // send or refresh main card and store messageId only if this send contains a card
           const card = buildMainCard(personId);
           const attachments = [{ contentType: "application/vnd.microsoft.card.adaptive", content: card }];
@@ -993,16 +1001,16 @@ app.post("/webhook", async (req, res) => {
             // Verify that the returned message is indeed a card message (has attachments)
             if (sent.json.attachments && sent.json.attachments.length && sent.json.attachments[0].contentType && sent.json.attachments[0].contentType.toLowerCase().includes("adaptive")) {
               if (
-                  sent.json.attachments &&
-                  sent.json.attachments.length &&
-                  sent.json.attachments[0].contentType &&
-                  sent.json.attachments[0].contentType.toLowerCase().includes("adaptive")
-                ) {
-                  users[personId].lastCardMessageId = sent.json.id;
-                  console.log("Saved lastCardMessageId:", sent.json.id);
-                } else {
-                  console.log("NOT saving lastCardMessageId — message had no adaptive card.");
-                }
+                sent.json.attachments &&
+                sent.json.attachments.length &&
+                sent.json.attachments[0].contentType &&
+                sent.json.attachments[0].contentType.toLowerCase().includes("adaptive")
+              ) {
+                users[personId].lastCardMessageId = sent.json.id;
+                console.log("Saved lastCardMessageId:", sent.json.id);
+              } else {
+                console.log("NOT saving lastCardMessageId — message had no adaptive card.");
+              }
 
               users[personId].roomId = roomId;
               users[personId].toastMainCard = null;
@@ -1016,49 +1024,49 @@ app.post("/webhook", async (req, res) => {
         } else if (text === "report") {
           console.log("Generating weekly report for:", personId);
 
-            const report = generateWeeklyPivotReport(personId);
-            const tableText = generateWeeklyPivotTableText(report);
+          const report = generateWeeklyPivotReport(personId);
+          const tableText = generateWeeklyPivotTableText(report);
 
-            const card = {
-              type: "AdaptiveCard",
-              version: "1.3",
-              body: [
-                {
-                  type: "TextBlock",
-                  text: "📊 Weekly Report",
-                  weight: "Bolder",
-                  size: "Medium"
-                },
-                {
-                  type: "TextBlock",
-                  text: "```\n" + tableText + "\n```",
-                  wrap: true
-                }
-              ],
-              actions: [
-                {
-                  type: "Action.Submit",
-                  title: "🔽 Download CSV",
-                  data: { action: "download_weekly_csv" }
-                },
-                {
-                  type: "Action.Submit",
-                  title: "🔄 Refresh Report",
-                  data: { action: "show_weekly_report" }
-                }
-              ]
-            };
+          const card = {
+            type: "AdaptiveCard",
+            version: "1.3",
+            body: [
+              {
+                type: "TextBlock",
+                text: "📊 Weekly Report",
+                weight: "Bolder",
+                size: "Medium"
+              },
+              {
+                type: "TextBlock",
+                text: "```\n" + tableText + "\n```",
+                wrap: true
+              }
+            ],
+            actions: [
+              {
+                type: "Action.Submit",
+                title: "🔽 Download CSV",
+                data: { action: "download_weekly_csv" }
+              },
+              {
+                type: "Action.Submit",
+                title: "🔄 Refresh Report",
+                data: { action: "show_weekly_report" }
+              }
+            ]
+          };
 
-            await sendMessage(
-              roomId,
-              "Weekly Report:",
-              [{
-                contentType: "application/vnd.microsoft.card.adaptive",
-                content: card
-              }]
-            );
+          await sendMessage(
+            roomId,
+            "Weekly Report:",
+            [{
+              contentType: "application/vnd.microsoft.card.adaptive",
+              content: card
+            }]
+          );
 
-            return;
+          return;
         } else if (text === "timers" || text === "show timers") {
           const card = buildTimersCard(personId);
           const attachments = [{ contentType: "application/vnd.microsoft.card.adaptive", content: card }];
@@ -1067,21 +1075,33 @@ app.post("/webhook", async (req, res) => {
           if (sent && sent.json && sent.json.id) {
             if (sent.json.attachments && sent.json.attachments.length && sent.json.attachments[0].contentType && sent.json.attachments[0].contentType.toLowerCase().includes("adaptive")) {
               if (
-                  sent.json.attachments &&
-                  sent.json.attachments.length &&
-                  sent.json.attachments[0].contentType &&
-                  sent.json.attachments[0].contentType.toLowerCase().includes("adaptive")
-                ) {
-                  users[personId].timersCardMessageId = sent.json.id;
-                  console.log("Saved timersCardMessageId:", sent.json.id);
-                } else {
-                  console.log("NOT saving timersCardMessageId — message had no adaptive card.");
-                }
+                sent.json.attachments &&
+                sent.json.attachments.length &&
+                sent.json.attachments[0].contentType &&
+                sent.json.attachments[0].contentType.toLowerCase().includes("adaptive")
+              ) {
+                users[personId].timersCardMessageId = sent.json.id;
+                console.log("Saved timersCardMessageId:", sent.json.id);
+              } else {
+                console.log("NOT saving timersCardMessageId — message had no adaptive card.");
+              }
               console.log("Saved timersCardMessageId for", personId, sent.json.id);
             } else {
               console.log("Sent timers message wasn't a card; not saving timersCardMessageId:", sent.json);
             }
           }
+        }
+        else if (text === "help") {
+          const helpText = `👋 **Timecard Bot Help**
+
+Type **start** to open the timecard adaptive card.
+Type **timers** to view and stop active timers.
+Type **report** to get your weekly time report.
+Type **help** to see this message again.`;
+          await sendMessage({ roomId, markdown: helpText });
+        } else {
+          console.log("Ignoring message text:", text);
+          await sendMessage({ roomId, markdown: "❓ Unknown command. Type **help** for more information!" });
         }
       } catch (err) {
         console.error("Error handling message event:", err && err.stack ? err : err);
@@ -1131,38 +1151,38 @@ app.post("/webhook", async (req, res) => {
 
         function buildWeeklyReportCard(tableText) {
           return {
-              $schema: "http://adaptivecards.io/schemas/adaptive-card.json",
-              type: "AdaptiveCard",
-              version: "1.3",
-              body: [
-                  {
-                      type: "TextBlock",
-                      text: "📊 Weekly Report",
-                      weight: "Bolder",
-                      size: "Medium"
-                  },
-                  {
-                      type: "TextBlock",
-                      text: "```\n" + tableText + "\n```",
-                      wrap: true
-                  }
-              ],
-              actions: [
-                  {
-                      type: "Action.Submit",
-                      title: "🔄 Refresh Report",
-                      data: { action: "refresh_report" }
-                  },
-                  {
-                      type: "Action.Submit",
-                      title: "📁 Download CSV",
-                      data: { action: "download_weekly_csv" }
-                  }
-              ]
+            $schema: "http://adaptivecards.io/schemas/adaptive-card.json",
+            type: "AdaptiveCard",
+            version: "1.3",
+            body: [
+              {
+                type: "TextBlock",
+                text: "📊 Weekly Report",
+                weight: "Bolder",
+                size: "Medium"
+              },
+              {
+                type: "TextBlock",
+                text: "```\n" + tableText + "\n```",
+                wrap: true
+              }
+            ],
+            actions: [
+              {
+                type: "Action.Submit",
+                title: "🔄 Refresh Report",
+                data: { action: "refresh_report" }
+              },
+              {
+                type: "Action.Submit",
+                title: "📁 Download CSV",
+                data: { action: "download_weekly_csv" }
+              }
+            ]
           };
-      }
+        }
 
-        
+
 
         // ---- start_timer (save project + start timer + auto-refresh main & timers card) ----
         if (actionType === "start_timer") {
@@ -1170,14 +1190,14 @@ app.post("/webhook", async (req, res) => {
           const typed = (inputs.newProject || "").toString().trim();
           const project = typed || selected || "Unknown";
           const notes = inputs.notes || "";
-          
+
 
           addProjectIfMissing(personId, project);
 
           // Ensure user object exists
           users[personId] = users[personId] || {};
           users[personId].activeTimers = users[personId].activeTimers || {};
-          
+
 
           const u = users[personId];
 
@@ -1332,7 +1352,7 @@ app.post("/webhook", async (req, res) => {
             const fetchRes = await fetchMessageById(users[personId].lastCardMessageId);
             if (fetchRes && fetchRes.ok && fetchRes.json && fetchRes.json.attachments && fetchRes.json.attachments.length) {
               const updated = buildMainCard(personId);
-              await updateMessageById(users[personId].lastCardMessageId,users[personId].roomId, "🕒 Timecard (projects updated)", updated);
+              await updateMessageById(users[personId].lastCardMessageId, users[personId].roomId, "🕒 Timecard (projects updated)", updated);
             } else {
               console.log("Skipping update after delete — stored message isn't a card.");
             }
@@ -1345,7 +1365,7 @@ app.post("/webhook", async (req, res) => {
             const fetchRes = await fetchMessageById(users[personId].lastCardMessageId);
             if (fetchRes && fetchRes.ok && fetchRes.json && fetchRes.json.attachments && fetchRes.json.attachments.length) {
               const updated = buildMainCard(personId);
-              await updateMessageById(users[personId].lastCardMessageId,users[personId].roomId, "🕒 Timecard (cancelled manage)", updated);
+              await updateMessageById(users[personId].lastCardMessageId, users[personId].roomId, "🕒 Timecard (cancelled manage)", updated);
             } else {
               console.log("Skipping manage_cancel update — stored message isn't a card.");
             }
@@ -1354,187 +1374,187 @@ app.post("/webhook", async (req, res) => {
         }
 
         if (actionType === "stop_selected_timers") {
-            const u = users[personId] || {};
-            const timers = u.activeTimers || {};
-            const selectedKeys = Object.entries(inputs)
-              .filter(([k, v]) => k.startsWith("con_") && String(v) === "true")
-              .map(([k]) => (u.consolidatedMap && u.consolidatedMap[k]) || null)
-              .filter(Boolean);
+          const u = users[personId] || {};
+          const timers = u.activeTimers || {};
+          const selectedKeys = Object.entries(inputs)
+            .filter(([k, v]) => k.startsWith("con_") && String(v) === "true")
+            .map(([k]) => (u.consolidatedMap && u.consolidatedMap[k]) || null)
+            .filter(Boolean);
 
-            if (!selectedKeys.length) {
-              users[personId].toastMainCard = "⚠️ No timers selected.";
-              await refreshMainCard();
-              await refreshTimersCard();
-              return;
-            }
+          if (!selectedKeys.length) {
+            users[personId].toastMainCard = "⚠️ No timers selected.";
+            await refreshMainCard();
+            await refreshTimersCard();
+            return;
+          }
 
-            let stoppedCount = 0;
-            for (const ckey of [...new Set(selectedKeys)]) {
-              // find all active timer ids that match this consolidated key
-              for (const [tid, t] of Object.entries(timers)) {
-                const key = `${t.project}||${(t.notes || "").trim()}`;
-                if (key === ckey) {
-                  // stop this timer (same logic as your stopTimer)
-                  const now = Date.now();
-                  const minutes = Math.max(1, Math.round((now - new Date(t.startedAt).getTime()) / 60000));
+          let stoppedCount = 0;
+          for (const ckey of [...new Set(selectedKeys)]) {
+            // find all active timer ids that match this consolidated key
+            for (const [tid, t] of Object.entries(timers)) {
+              const key = `${t.project}||${(t.notes || "").trim()}`;
+              if (key === ckey) {
+                // stop this timer (same logic as your stopTimer)
+                const now = Date.now();
+                const minutes = Math.max(1, Math.round((now - new Date(t.startedAt).getTime()) / 60000));
 
-                  const arr = loadUserTimecards(personId);
-                  arr.push({
-                    user: personId,
-                    project: t.project,
-                    notes: t.notes || "",
-                    minutes,
-                    ts: new Date().toISOString()
-                  });
-                  saveUserTimecards(personId, arr);
+                const arr = loadUserTimecards(personId);
+                arr.push({
+                  user: personId,
+                  project: t.project,
+                  notes: t.notes || "",
+                  minutes,
+                  ts: new Date().toISOString()
+                });
+                saveUserTimecards(personId, arr);
 
-                  delete timers[tid];
-                  stoppedCount++;
-                }
+                delete timers[tid];
+                stoppedCount++;
               }
             }
-
-            persistActiveTimers(personId);
-
-            users[personId].toastMainCard = `✔ Stopped ${stoppedCount} timer(s).`;
-            await refreshMainCard();
-            await refreshTimersCard();
-            return;
           }
 
-          if (actionType === "stop_all_timers") {
-            const u = users[personId] || {};
-            const timers = u.activeTimers || {};
-            const allIds = Object.keys(timers);
+          persistActiveTimers(personId);
 
-            if (allIds.length === 0) {
-              users[personId].toastMainCard = "⚠️ No timers running.";
-              await refreshMainCard();
-              return;
-            }
-
-            let stoppedCount = 0;
-            for (const tid of allIds) {
-              const t = timers[tid];
-              if (!t) continue;
-
-              const now = Date.now();
-              const minutes = Math.max(1, Math.round((now - new Date(t.startedAt).getTime()) / 60000));
-
-              const arr = loadUserTimecards(personId);
-              arr.push({
-                user: personId,
-                project: t.project,
-                notes: t.notes || "",
-                minutes,
-                ts: new Date().toISOString()
-              });
-              saveUserTimecards(personId, arr);
-
-              delete timers[tid];
-              stoppedCount++;
-            }
-
-            persistActiveTimers(personId);
-
-            users[personId].toastMainCard = `✔ Stopped all (${stoppedCount}) timer(s).`;
-            await refreshMainCard();
-            await refreshTimersCard();
-
-            return;
-          }
-
-          if (actionType === "download_weekly_csv") {
-            const report = generateWeeklyPivotReport(personId);
-            const csv = generateWeeklyPivotCSV(report);
-            const buffer = Buffer.from(csv, "utf8");
-
-            await sendFile(roomId,`📊 Weekly Report CSV (${report.startDate} → ${report.endDate})`,buffer,`weekly_report_${report.startDate}_to_${report.endDate}.csv`);
-
-            return;
+          users[personId].toastMainCard = `✔ Stopped ${stoppedCount} timer(s).`;
+          await refreshMainCard();
+          await refreshTimersCard();
+          return;
         }
-          if (actionType === "show_weekly_report") {
-            console.log("Generating weekly report for:", personId);
 
-            const report = generateWeeklyPivotReport(personId);
-            const tableText = generateWeeklyPivotTableText(report);
+        if (actionType === "stop_all_timers") {
+          const u = users[personId] || {};
+          const timers = u.activeTimers || {};
+          const allIds = Object.keys(timers);
 
-            const card = {
-              type: "AdaptiveCard",
-              version: "1.3",
-              body: [
-                {
-                  type: "TextBlock",
-                  text: "📊 Weekly Report",
-                  weight: "Bolder",
-                  size: "Medium"
-                },
-                {
-                  type: "TextBlock",
-                  text: "```\n" + tableText + "\n```",
-                  wrap: true
-                }
-              ],
-              actions: [
-                {
-                  type: "Action.Submit",
-                  title: "🔽 Download CSV",
-                  data: { action: "download_weekly_csv" }
-                },
-                {
-                  type: "Action.Submit",
-                  title: "🔄 Refresh Report",
-                  data: { action: "show_weekly_report" }
-                }
-              ]
-            };
-
-            await sendMessage(
-              roomId,
-              "Weekly Report:",
-              [{
-                contentType: "application/vnd.microsoft.card.adaptive",
-                content: card
-              }]
-            );
-
-            if (sent?.json?.id) {
-                users[personId].reportCardMessageId = sent.json.id;
-                console.log("Saved reportCardMessageId:", sent.json.id);
-            }
-
+          if (allIds.length === 0) {
+            users[personId].toastMainCard = "⚠️ No timers running.";
+            await refreshMainCard();
             return;
+          }
+
+          let stoppedCount = 0;
+          for (const tid of allIds) {
+            const t = timers[tid];
+            if (!t) continue;
+
+            const now = Date.now();
+            const minutes = Math.max(1, Math.round((now - new Date(t.startedAt).getTime()) / 60000));
+
+            const arr = loadUserTimecards(personId);
+            arr.push({
+              user: personId,
+              project: t.project,
+              notes: t.notes || "",
+              minutes,
+              ts: new Date().toISOString()
+            });
+            saveUserTimecards(personId, arr);
+
+            delete timers[tid];
+            stoppedCount++;
+          }
+
+          persistActiveTimers(personId);
+
+          users[personId].toastMainCard = `✔ Stopped all (${stoppedCount}) timer(s).`;
+          await refreshMainCard();
+          await refreshTimersCard();
+
+          return;
+        }
+
+        if (actionType === "download_weekly_csv") {
+          const report = generateWeeklyPivotReport(personId);
+          const csv = generateWeeklyPivotCSV(report);
+          const buffer = Buffer.from(csv, "utf8");
+
+          await sendFile(roomId, `📊 Weekly Report CSV (${report.startDate} → ${report.endDate})`, buffer, `weekly_report_${report.startDate}_to_${report.endDate}.csv`);
+
+          return;
+        }
+        if (actionType === "show_weekly_report") {
+          console.log("Generating weekly report for:", personId);
+
+          const report = generateWeeklyPivotReport(personId);
+          const tableText = generateWeeklyPivotTableText(report);
+
+          const card = {
+            type: "AdaptiveCard",
+            version: "1.3",
+            body: [
+              {
+                type: "TextBlock",
+                text: "📊 Weekly Report",
+                weight: "Bolder",
+                size: "Medium"
+              },
+              {
+                type: "TextBlock",
+                text: "```\n" + tableText + "\n```",
+                wrap: true
+              }
+            ],
+            actions: [
+              {
+                type: "Action.Submit",
+                title: "🔽 Download CSV",
+                data: { action: "download_weekly_csv" }
+              },
+              {
+                type: "Action.Submit",
+                title: "🔄 Refresh Report",
+                data: { action: "show_weekly_report" }
+              }
+            ]
+          };
+
+          await sendMessage(
+            roomId,
+            "Weekly Report:",
+            [{
+              contentType: "application/vnd.microsoft.card.adaptive",
+              content: card
+            }]
+          );
+
+          if (sent?.json?.id) {
+            users[personId].reportCardMessageId = sent.json.id;
+            console.log("Saved reportCardMessageId:", sent.json.id);
+          }
+
+          return;
         }
 
         if (actionType === "refresh_report") {
 
-            const msgId = users[personId].reportCardMessageId;
+          const msgId = users[personId].reportCardMessageId;
 
-            if (!msgId) {
-                console.log("No reportCardMessageId saved — fallback to show_weekly_report");
-                return await doShowWeeklyReport(); // your wrapper
-            }
+          if (!msgId) {
+            console.log("No reportCardMessageId saved — fallback to show_weekly_report");
+            return await doShowWeeklyReport(); // your wrapper
+          }
 
-            // Re-generate updated report data
-            const report = generateWeeklyPivotReport(personId);
-            const tableText = generateWeeklyPivotTableText(report);
-            const updatedCard = buildWeeklyReportCard(tableText);
+          // Re-generate updated report data
+          const report = generateWeeklyPivotReport(personId);
+          const tableText = generateWeeklyPivotTableText(report);
+          const updatedCard = buildWeeklyReportCard(tableText);
 
-            // Update the existing Adaptive Card
-            const updated = await updateMessageById(
-                msgId,
-                roomId,
-                "Weekly Report:",
-                updatedCard
-            );
+          // Update the existing Adaptive Card
+          const updated = await updateMessageById(
+            msgId,
+            roomId,
+            "Weekly Report:",
+            updatedCard
+          );
 
-            if (!updated) {
-                console.log("Failed to update report card — fallback");
-                return await doShowWeeklyReport();
-            }
+          if (!updated) {
+            console.log("Failed to update report card — fallback");
+            return await doShowWeeklyReport();
+          }
 
-            console.log("Updated weekly report card:", msgId);
-            return;
+          console.log("Updated weekly report card:", msgId);
+          return;
         }
 
 
@@ -1551,26 +1571,6 @@ app.post("/webhook", async (req, res) => {
               const sent = await sendMessage(roomId, "🕒 Timecard", attachments);
               if (sent && sent.json && sent.json.id && sent.json.attachments && sent.json.attachments.length && sent.json.attachments[0].contentType && sent.json.attachments[0].contentType.toLowerCase().includes("adaptive")) {
                 if (
-                    sent.json.attachments &&
-                    sent.json.attachments.length &&
-                    sent.json.attachments[0].contentType &&
-                    sent.json.attachments[0].contentType.toLowerCase().includes("adaptive")
-                  ) {
-                    users[personId].lastCardMessageId = sent.json.id;
-                    console.log("Saved lastCardMessageId:", sent.json.id);
-                  } else {
-                    console.log("NOT saving lastCardMessageId — message had no adaptive card.");
-                  }
-
-              }
-            }
-          } else {
-            const mainCard = buildMainCard(personId);
-            const attachments = [{ contentType: "application/vnd.microsoft.card.adaptive", content: mainCard }];
-            const sent = await sendMessage(roomId, "🕒 Timecard", attachments);
-            storeIfAdaptiveCard(users[personId], "lastCardMessageId", sent);
-            if (sent && sent.json && sent.json.id && sent.json.attachments && sent.json.attachments.length && sent.json.attachments[0].contentType && sent.json.attachments[0].contentType.toLowerCase().includes("adaptive")) {
-              if (
                   sent.json.attachments &&
                   sent.json.attachments.length &&
                   sent.json.attachments[0].contentType &&
@@ -1581,6 +1581,26 @@ app.post("/webhook", async (req, res) => {
                 } else {
                   console.log("NOT saving lastCardMessageId — message had no adaptive card.");
                 }
+
+              }
+            }
+          } else {
+            const mainCard = buildMainCard(personId);
+            const attachments = [{ contentType: "application/vnd.microsoft.card.adaptive", content: mainCard }];
+            const sent = await sendMessage(roomId, "🕒 Timecard", attachments);
+            storeIfAdaptiveCard(users[personId], "lastCardMessageId", sent);
+            if (sent && sent.json && sent.json.id && sent.json.attachments && sent.json.attachments.length && sent.json.attachments[0].contentType && sent.json.attachments[0].contentType.toLowerCase().includes("adaptive")) {
+              if (
+                sent.json.attachments &&
+                sent.json.attachments.length &&
+                sent.json.attachments[0].contentType &&
+                sent.json.attachments[0].contentType.toLowerCase().includes("adaptive")
+              ) {
+                users[personId].lastCardMessageId = sent.json.id;
+                console.log("Saved lastCardMessageId:", sent.json.id);
+              } else {
+                console.log("NOT saving lastCardMessageId — message had no adaptive card.");
+              }
 
             }
           }
@@ -1596,7 +1616,7 @@ app.post("/webhook", async (req, res) => {
 
   } catch (err) {
     console.error("Webhook handler error:", err && err.stack ? err.stack : err);
-    try { res.status(500).send("error"); } catch(e) {}
+    try { res.status(500).send("error"); } catch (e) { }
   }
 });
 
